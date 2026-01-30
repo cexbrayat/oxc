@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   createMessageConnection,
+  DiagnosticSeverity,
   DidChangeConfigurationNotification,
   DidChangeTextDocumentNotification,
   DidOpenTextDocumentNotification,
@@ -27,13 +28,36 @@ import { codeFrameColumns } from "@babel/code-frame";
 const CLI_PATH = join(import.meta.dirname, "..", "..", "dist", "cli.js");
 
 export function createLspConnection() {
-  const proc = spawn(process.execPath, [CLI_PATH, "--lsp"]);
+  const proc = spawn(process.execPath, [CLI_PATH, "--lsp"], {
+    env: {
+      ...process.env,
+      OXC_LOG: "debug",
+    },
+  });
 
   const connection = createMessageConnection(
     new StreamMessageReader(proc.stdout),
     new StreamMessageWriter(proc.stdin),
   );
   connection.listen();
+
+  connection.onRequest((method, params) => {
+    process.stderr.write(`[LSP REQUEST] ${method} ${JSON.stringify(params)}
+`);
+  });
+  connection.onNotification((method, params) => {
+    process.stderr.write(`[LSP NOTIFICATION] ${method} ${JSON.stringify(params)}
+`);
+  });
+
+  proc.stdout.addListener("data", (data) => {
+    process.stderr.write(`[LSP STDOUT] ${data.toString()}
+`);
+  });
+  proc.stderr.addListener("data", (data) => {
+    process.stderr.write(`[LSP STDERR] ${data.toString()}
+`);
+  });
 
   return {
     // NOTE: Config and ignore files are searched from `workspaceFolders[].uri` upward
@@ -91,7 +115,7 @@ export function createLspConnection() {
       await connection.sendRequest(ShutdownRequest.type);
       await connection.sendNotification(ExitNotification.type);
       connection.dispose();
-      proc.kill();
+      setTimeout(() => proc.kill(), 1000);
     },
   };
 }
@@ -147,14 +171,43 @@ ${applyDiagnostics(content, diagnostics).join("\n--------------------")}
 
 type OxlintLSPConfig = {};
 
+function getSeverityLabel(severity: number | undefined): string {
+  if (!severity) return "Unknown";
+
+  switch (severity) {
+    case DiagnosticSeverity.Error:
+      return "Error";
+    case DiagnosticSeverity.Warning:
+      return "Warning";
+    case DiagnosticSeverity.Information:
+      return "Information";
+    case DiagnosticSeverity.Hint:
+      return "Hint";
+    default:
+      return "Unknown";
+  }
+}
+
 function applyDiagnostics(content: string, report: DocumentDiagnosticReport): string[] {
   if (report.kind !== "full") {
     throw new Error("Only full reports are supported by oxlint lsp");
   }
 
-  return report.items.map((diagnostic) =>
-    codeFrameColumns(content, diagnostic.range, {
-      message: diagnostic.message,
-    }),
-  );
+  return report.items.map((diagnostic) => {
+    const babelLocation = {
+      start: {
+        line: diagnostic.range.start.line + 1,
+        column: diagnostic.range.start.character + 1,
+      },
+      end: {
+        line: diagnostic.range.end.line + 1,
+        column: diagnostic.range.end.character + 1,
+      },
+    };
+    const severity = getSeverityLabel(diagnostic.severity);
+
+    return codeFrameColumns(content, babelLocation, {
+      message: `${severity}: ${diagnostic.message}`,
+    });
+  });
 }

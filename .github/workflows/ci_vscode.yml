@@ -82,7 +82,7 @@ jobs:
       - name: Build oxlint (with napi)
         if: steps.oxlint.outputs.src == 'true'
         working-directory: editors/vscode
-        run: pnpm run oxlint:build:debug
+        run: pnpm run oxlint:build:release
 
       - name: Build oxfmt (with napi)
         if: steps.oxfmt.outputs.src == 'true'
