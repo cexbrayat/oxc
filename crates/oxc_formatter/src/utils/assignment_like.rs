@@ -1,6 +1,5 @@
 use oxc_ast::ast::*;
 use oxc_span::GetSpan;
-use unicode_width::UnicodeWidthChar;
 
 use crate::{
     ast_nodes::{AstNode, AstNodes},
@@ -1016,60 +1015,47 @@ fn is_short_argument(argument: &Expression, threshold: u16, f: &Formatter) -> bo
 /// We need it to decide if `CallExpression` with the type arguments is breakable or not.
 /// If the type arguments is complex the function call is breakable.
 ///
-/// Approximation of Prettier's `isCallExpressionWithComplexTypeArguments` without `willBreak`.
-///
-/// Prettier uses `willBreak(print("typeArguments"))`, but running `inspect` here
-/// mutates comment state and is costly. We instead use a conservative heuristic
-/// based on complexity, comments, newlines, and raw span width.
-///
-/// <https://github.com/prettier/prettier/blob/a043ac0d733c4d53f980aa73807a63fc914f23bd/src/language-js/print/assignment.js#L432-L459>
+/// NOTE: This function does not follow Prettier exactly.
+////// <https://github.com/prettier/prettier/blob/a043ac0d733c4d53f980aa73807a63fc914f23bd/src/language-js/print/assignment.js#L432-L459>
 fn is_complex_type_arguments<'a>(
-    type_arguments: &AstNode<'a, TSTypeParameterInstantiation<'a>>,
+    type_arguments: &TSTypeParameterInstantiation<'a>,
     f: &Formatter<'_, 'a>,
 ) -> bool {
-    let is_complex_ts_type = |ts_type: &TSType| {
-        matches!(
-            ts_type,
-            TSType::TSUnionType(_) | TSType::TSIntersectionType(_) | TSType::TSTypeLiteral(_)
-        )
+    let is_complex_ts_type = |ts_type: &TSType| match ts_type {
+        TSType::TSUnionType(_) | TSType::TSIntersectionType(_) | TSType::TSTypeLiteral(_) => true,
+        // Check for newlines after `{` in mapped types, as it will expand to multiple lines if so
+        TSType::TSMappedType(mapped) => f.source_text().has_newline_after(mapped.span.start + 1),
+        _ => false,
     };
 
-    let params = type_arguments.params();
+    let is_complex_type_reference = |reference: &TSTypeReference| {
+        reference.type_arguments.as_ref().is_some_and(|type_arguments| {
+            type_arguments.params.iter().any(|param| match param {
+                TSType::TSTypeLiteral(literal) => literal.members.len() > 1,
+                _ => false,
+            })
+        })
+    };
+
+    let params = &type_arguments.params;
     if params.len() > 1 {
         return true;
     }
 
-    if params.first().is_some_and(|param| is_complex_ts_type(param.as_ref()))
-        && type_arguments_may_break(type_arguments, f)
-    {
+    // NOTE: Prettier checks `willBreak(print(typeArgs))` here.
+    // Our equivalent is `type_arguments.memoized().inspect(f).will_break()`,
+    // but we avoid using it because:
+    // - `inspect(f)` (= `f.intern()`) will update the comment counting state in `f`
+    // - And resulted IRs are discarded after this check
+    // So we approximate it by checking if the type arguments contain complex types.
+    if params.first().is_some_and(|param| match param {
+        TSType::TSTypeReference(reference) => is_complex_type_reference(reference),
+        ts_type => is_complex_ts_type(ts_type),
+    }) {
         return true;
     }
 
-    type_arguments_may_break(type_arguments, f)
-}
-
-fn type_arguments_may_break(
-    type_arguments: &AstNode<'_, TSTypeParameterInstantiation<'_>>,
-    f: &Formatter<'_, '_>,
-) -> bool {
-    let span = type_arguments.span();
-    let source_text = f.source_text();
-
-    if source_text.contains_newline(span) || f.comments().has_comment_in_span(span) {
-        return true;
-    }
-
-    // Width check for long type arguments using a simple character count.
-    let limit = f.options().line_width.value() as usize;
-    let mut count = 0;
-    for ch in source_text.text_for(&span).chars() {
-        count += ch.width().unwrap_or(0);
-        if count > limit {
-            return true;
-        }
-    }
-
-    false
+    f.comments().has_comment_in_span(type_arguments.span)
 }
 
 /// [Prettier applies]: <https://github.com/prettier/prettier/blob/fde0b49d7866e203ca748c306808a87b7c15548f/src/language-js/print/assignment.js#L278>

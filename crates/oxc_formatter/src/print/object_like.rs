@@ -1,5 +1,4 @@
 use oxc_ast::ast::*;
-use oxc_span::GetSpan;
 
 use crate::{
     ast_nodes::{AstNode, AstNodes},
@@ -54,17 +53,6 @@ impl<'a> ObjectLike<'a, '_> {
         })
     }
 
-    fn members_have_leading_newline(&self, f: &Formatter<'_, 'a>) -> bool {
-        match self {
-            Self::ObjectExpression(o) => o.as_ref().properties.first().is_some_and(|p| {
-                f.source_text().contains_newline_between(o.span.start, p.span().start)
-            }),
-            Self::TSTypeLiteral(o) => o.as_ref().members.first().is_some_and(|p| {
-                f.source_text().contains_newline_between(o.span().start, p.span().start)
-            }),
-        }
-    }
-
     fn members_are_empty(&self) -> bool {
         match self {
             Self::ObjectExpression(o) => o.properties().is_empty(),
@@ -110,8 +98,8 @@ impl<'a> Format<'a> for ObjectLike<'a, '_> {
             }
         } else {
             let should_insert_space_around_brackets = f.options().bracket_spacing.value();
-            let should_expand =
-                f.options().expand == Expand::Auto && self.members_have_leading_newline(f);
+            let should_expand = f.options().expand == Expand::Auto
+                && f.source_text().has_newline_after_opening_brace(self.span().start);
 
             // If the object type is the type annotation of the only parameter in a function,
             // try to hug the parameter; we don't create a group and inline the contents here.

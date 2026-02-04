@@ -113,6 +113,11 @@ impl<'a> SourceText<'a> {
         false
     }
 
+    /// Check for a newline immediately after an opening brace `{`, stopping at first non-whitespace.
+    pub fn has_newline_after_opening_brace(&self, position: u32) -> bool {
+        self.has_newline_after(position + 1)
+    }
+
     // Byte range operations
     /// Check if byte range contains specific byte
     pub fn bytes_contain(&self, start: u32, end: u32, byte: u8) -> bool {
