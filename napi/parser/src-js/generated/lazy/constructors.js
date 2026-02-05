@@ -4620,6 +4620,66 @@ function constructFormalParameterKind(pos, ast) {
   }
 }
 
+export class FormalParameterRest {
+  type = "FormalParameterRest";
+  #internal;
+
+  constructor(pos, ast) {
+    if (ast?.token !== TOKEN) constructorError();
+
+    const { nodes } = ast;
+    const cached = nodes.get(pos);
+    if (cached !== void 0) return cached;
+
+    this.#internal = { pos, ast, $decorators: void 0 };
+    nodes.set(pos, this);
+  }
+
+  get start() {
+    const internal = this.#internal;
+    return constructU32(internal.pos, internal.ast);
+  }
+
+  get end() {
+    const internal = this.#internal;
+    return constructU32(internal.pos + 4, internal.ast);
+  }
+
+  get decorators() {
+    const internal = this.#internal,
+      cached = internal.$decorators;
+    if (cached !== void 0) return cached;
+    return (internal.$decorators = constructVecDecorator(internal.pos + 8, internal.ast));
+  }
+
+  get rest() {
+    const internal = this.#internal;
+    return new BindingRestElement(internal.pos + 32, internal.ast);
+  }
+
+  get typeAnnotation() {
+    const internal = this.#internal;
+    return constructOptionBoxTSTypeAnnotation(internal.pos + 56, internal.ast);
+  }
+
+  toJSON() {
+    return {
+      type: "FormalParameterRest",
+      start: this.start,
+      end: this.end,
+      decorators: this.decorators,
+      rest: this.rest,
+      typeAnnotation: this.typeAnnotation,
+    };
+  }
+
+  [inspectSymbol]() {
+    return Object.setPrototypeOf(this.toJSON(), DebugFormalParameterRest.prototype);
+  }
+}
+
+const DebugFormalParameterRest = class FormalParameterRest {};
+
 export class FunctionBody {
   type = "FunctionBody";
   #internal;
@@ -13235,6 +13295,15 @@ function constructVecFormalParameter(pos, ast) {
 
 function constructFormalParameter(pos, ast) {
   return new FormalParameter(pos, ast);
+}
+
+function constructBoxFormalParameterRest(pos, ast) {
+  return new FormalParameterRest(ast.buffer.uint32[pos >> 2], ast);
+}
+
+function constructOptionBoxFormalParameterRest(pos, ast) {
+  if (ast.buffer.uint32[pos >> 2] === 0 && ast.buffer.uint32[(pos + 4) >> 2] === 0) return null;
+  return constructBoxFormalParameterRest(pos, ast);
 }
 
 function constructVecDecorator(pos, ast) {

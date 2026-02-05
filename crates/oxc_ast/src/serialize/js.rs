@@ -243,7 +243,7 @@ impl ConcatElement for FormalParameters<'_> {
 #[ast_meta]
 #[estree(
     ts_type = "FormalParameterRest",
-    raw_deser = "unreachable!(\"FormalParameterRest is never deserialized directly\")"
+    raw_deser = "(() => { throw new Error('FormalParameterRest is never deserialized directly'); })()"
 )]
 pub struct FormalParameterRestConverter<'a, 'b>(pub &'b FormalParameterRest<'a>);
 
