@@ -21,6 +21,8 @@ export default defineConfig({
       expand: false,
     },
     exclude,
+    // Use 'dot' reporter in CI to avoid logging ~58,000 test names from parse-raw.test.ts
+    reporter: process.env.CI ? "dot" : "default",
   },
   plugins: [
     // Enable Codspeed plugin in CI only
