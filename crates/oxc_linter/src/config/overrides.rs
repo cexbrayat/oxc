@@ -128,9 +128,18 @@ impl GlobSet {
                 .into_iter()
                 .map(|pat| {
                     let pattern = pat.as_ref();
+                    // Normalize patterns starting with "./" to remove the prefix
+                    // since paths are matched relative to the config file's directory
+                    let had_dot_slash = pattern.starts_with("./");
+                    let pattern = pattern.strip_prefix("./").unwrap_or(pattern);
+
                     if pattern.contains('/') {
                         pattern.to_owned()
+                    } else if had_dot_slash {
+                        // Pattern started with "./", treat as literal path relative to config
+                        pattern.to_owned()
                     } else {
+                        // Pattern has no path separator, make it recursive
                         let mut s = String::with_capacity(pattern.len() + 3);
                         s.push_str("**/");
                         s.push_str(pattern);
@@ -168,6 +177,22 @@ mod test {
         .unwrap();
         assert!(config.files.is_match("lib/foo.ts"));
         assert!(!config.files.is_match("src/foo.ts"));
+
+        // Test that patterns with "./" prefix are normalized
+        // Fixes https://github.com/oxc-project/oxc/issues/18952
+        let config: OxlintOverride = from_value(json!({
+            "files": ["./index.js",],
+        }))
+        .unwrap();
+        assert!(config.files.is_match("index.js"));
+        assert!(!config.files.is_match("src/index.js"));
+
+        let config: OxlintOverride = from_value(json!({
+            "files": ["./src/*.ts",],
+        }))
+        .unwrap();
+        assert!(config.files.is_match("src/foo.ts"));
+        assert!(!config.files.is_match("lib/foo.ts"));
     }
 
     #[test]
