@@ -193,6 +193,14 @@ mod test {
         .unwrap();
         assert!(config.files.is_match("src/foo.ts"));
         assert!(!config.files.is_match("lib/foo.ts"));
+
+        // Test that patterns with "../" prefix are kept as-is (not normalized)
+        let config: OxlintOverride = from_value(json!({
+            "files": ["../foo.js",],
+        }))
+        .unwrap();
+        assert!(config.files.is_match("../foo.js"));
+        assert!(!config.files.is_match("foo.js"));
     }
 
     #[test]
