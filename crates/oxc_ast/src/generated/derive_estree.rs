@@ -1321,6 +1321,12 @@ impl ESTree for FormalParameterKind {
     }
 }
 
+impl ESTree for FormalParameterRest<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) {
+        crate::serialize::js::FormalParameterRestConverter(self).serialize(serializer)
+    }
+}
+
 impl ESTree for FunctionBody<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) {
         let mut state = serializer.serialize_struct();

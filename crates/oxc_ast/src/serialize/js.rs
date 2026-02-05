@@ -237,12 +237,22 @@ impl ConcatElement for FormalParameters<'_> {
     }
 }
 
-impl ESTree for FormalParameterRest<'_> {
+/// Converter for `FormalParameterRest`.
+///
+/// Serializes as `RestElement` with proper span calculation from type annotation.
+#[ast_meta]
+#[estree(
+    ts_type = "FormalParameterRest",
+    raw_deser = "unreachable!(\"FormalParameterRest is never deserialized directly\")"
+)]
+pub struct FormalParameterRestConverter<'a, 'b>(pub &'b FormalParameterRest<'a>);
+
+impl ESTree for FormalParameterRestConverter<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) {
-        let rest = self;
+        let rest = self.0;
         let mut state = serializer.serialize_struct();
         state.serialize_field("type", &JsonSafeString("RestElement"));
-        state.serialize_ts_field("decorators", &EmptyArray(()));
+        state.serialize_ts_field("decorators", &rest.decorators);
         state.serialize_field("argument", &rest.rest.argument);
         state.serialize_ts_field("optional", &false);
         state.serialize_ts_field("typeAnnotation", &rest.type_annotation);

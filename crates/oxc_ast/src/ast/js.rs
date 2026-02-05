@@ -1829,7 +1829,7 @@ pub enum FunctionType {
         interface FormalParameterRest extends Span {
             type: 'RestElement';
             argument: BindingPattern;
-            decorators?: [],
+            decorators?: Array<Decorator>;
             optional?: boolean;
             typeAnnotation?: TSTypeAnnotation | null;
             value?: null;
@@ -1916,9 +1916,12 @@ pub enum FormalParameterKind {
 /// Wrapper around [`BindingRestElement`] with optional type annotation for TypeScript.
 #[ast(visit)]
 #[derive(Debug)]
-#[generate_derive(CloneIn, Dummy, TakeIn, GetSpan, GetSpanMut, ContentEq, UnstableAddress)]
+#[generate_derive(CloneIn, Dummy, TakeIn, GetSpan, GetSpanMut, ContentEq, ESTree, UnstableAddress)]
+#[estree(via = FormalParameterRestConverter)]
 pub struct FormalParameterRest<'a> {
     pub span: Span,
+    #[ts]
+    pub decorators: Vec<'a, Decorator<'a>>,
     pub rest: BindingRestElement<'a>,
     pub type_annotation: Option<Box<'a, TSTypeAnnotation<'a>>>,
 }

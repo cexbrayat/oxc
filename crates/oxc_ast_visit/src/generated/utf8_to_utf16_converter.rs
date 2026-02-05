@@ -434,6 +434,12 @@ impl<'a> VisitMut<'a> for Utf8ToUtf16Converter<'_> {
         self.convert_offset(&mut it.span.end);
     }
 
+    fn visit_formal_parameter_rest(&mut self, it: &mut FormalParameterRest<'a>) {
+        self.convert_offset(&mut it.span.start);
+        walk_mut::walk_formal_parameter_rest(self, it);
+        self.convert_offset(&mut it.span.end);
+    }
+
     fn visit_function_body(&mut self, it: &mut FunctionBody<'a>) {
         self.convert_offset(&mut it.span.start);
         walk_mut::walk_function_body(self, it);
